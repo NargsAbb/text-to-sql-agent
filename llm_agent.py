@@ -30,14 +30,20 @@ CRITICAL RULES:
 3. Do not provide explanations or commentary.
 """
   response = ollama.generate(
-      model=model_name,
-      prompt=prompt,
-      options={
-          "num_ctx": 1024,
-          "num_thread": 2,  # کاهش تعداد نخ‌های CPU برای جلوگیری از جهش رم
-      },
-  )
+    model=model_name,
+    prompt=prompt,
+    options={
+        "num_ctx": 1024,
+        "num_thread": 2,
+    },
+    keep_alive=0,
+)
   raw_sql = response["response"].strip()
 
   clean_sql = re.sub(r"```(?:sql)?", "", raw_sql).strip()
   return clean_sql
+
+def execute_query(sql_query):
+    with engine.connect() as conn:
+        df = pd.read_sql_query(text(sql_query), conn)
+    return df
