@@ -1,21 +1,25 @@
 import re
-import ollama
 import pandas as pd
+from openai import OpenAI
 from sqlalchemy import create_engine, inspect, text
 
 engine = create_engine("sqlite:///company.db")
 
-def get_schema():
-    inspector = inspect(engine)
-    schema_text = ""
-    for table_name in inspector.get_table_names():
-        schema_text += f"Table: {table_name}\nColumns:\n"
-        for column in inspector.get_columns(table_name):
-            schema_text += f"  - {column['name']} ({column['type']})\n"
-        schema_text += "\n"
-    return schema_text
+client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
 
-def generate_sql(user_query, model_name="gemma3:4b"):
+
+def get_schema():
+  inspector = inspect(engine)
+  schema_text = ""
+  for table_name in inspector.get_table_names():
+    schema_text += f"Table: {table_name}\nColumns:\n"
+    for column in inspector.get_columns(table_name):
+      schema_text += f"  - {column['name']} ({column['type']})\n"
+    schema_text += "\n"
+  return schema_text
+
+
+def generate_sql(user_query):
   schema = get_schema()
   prompt = f"""You are an expert SQL assistant. Given the following SQLite database schema:
 
@@ -29,21 +33,19 @@ CRITICAL RULES:
 2. Do not use Markdown block syntax (no ```sql or ```).
 3. Do not provide explanations or commentary.
 """
-  response = ollama.generate(
-    model=model_name,
-    prompt=prompt,
-    options={
-        "num_ctx": 1024,
-        "num_thread": 2,
-    },
-    keep_alive=0,
-)
-  raw_sql = response["response"].strip()
 
+  response = client.chat.completions.create(
+      model="qwen2.5-coder-1.5b-instruct",
+      messages=[{"role": "user", "content": prompt}],
+      temperature=0,
+  )
+
+  raw_sql = response.choices[0].message.content.strip()
   clean_sql = re.sub(r"```(?:sql)?", "", raw_sql).strip()
   return clean_sql
 
+
 def execute_query(sql_query):
-    with engine.connect() as conn:
-        df = pd.read_sql_query(text(sql_query), conn)
-    return df
+  with engine.connect() as conn:
+    df = pd.read_sql_query(text(sql_query), conn)
+  return df
