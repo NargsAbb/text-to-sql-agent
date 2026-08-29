@@ -1,4 +1,4 @@
 streamlit
 sqlalchemy
-ollama
+openai
 pandas
