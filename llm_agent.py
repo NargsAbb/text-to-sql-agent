@@ -45,7 +45,26 @@ CRITICAL RULES:
   return clean_sql
 
 
+FORBIDDEN_KEYWORDS = (
+    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER",
+    "CREATE", "TRUNCATE", "REPLACE", "ATTACH", "PRAGMA",
+)
+
+
 def execute_query(sql_query):
+  stripped = sql_query.strip().rstrip(";")
+
+  if not stripped.upper().startswith("SELECT"):
+    raise ValueError("Only SELECT queries are allowed.")
+
+  if ";" in stripped:
+    raise ValueError("Multiple statements are not allowed.")
+
+  upper_sql = stripped.upper()
+  for keyword in FORBIDDEN_KEYWORDS:
+    if keyword in upper_sql:
+      raise ValueError(f"Query contains a forbidden keyword: {keyword}")
+
   with engine.connect() as conn:
-    df = pd.read_sql_query(text(sql_query), conn)
+    df = pd.read_sql_query(text(stripped), conn)
   return df
