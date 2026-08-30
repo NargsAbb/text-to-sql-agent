@@ -18,28 +18,53 @@ sample_questions = [
     "What is the average review rating for each product?",
 ]
 
-selected_sample = st.selectbox(
-    "Select a sample question (optional):", ["-- Select --"] + sample_questions
+if "question_text" not in st.session_state:
+  st.session_state.question_text = sample_questions[0]
+if "history" not in st.session_state:
+  st.session_state.history = []
+
+
+def _apply_sample():
+  if st.session_state.sample_select != "-- Select --":
+    st.session_state.question_text = st.session_state.sample_select
+
+
+st.selectbox(
+    "Select a sample question (optional):",
+    ["-- Select --"] + sample_questions,
+    key="sample_select",
+    on_change=_apply_sample,
 )
 
-default_text = (
-    selected_sample
-    if selected_sample != "-- Select --"
-    else "Show total spending for each user along with their name"
-)
-
-user_input = st.text_input("Your Question:", value=default_text)
+user_input = st.text_input("Your Question:", key="question_text")
 
 if st.button("Run Query"):
   if user_input:
-    with st.spinner("Generating SQL query..."):
-      try:
+    try:
+      with st.spinner("Generating SQL query..."):
         sql_query = generate_sql(user_input)
-        st.subheader("Generated SQL Query:")
-        st.code(sql_query, language="sql")
+      st.subheader("Generated SQL Query:")
+      st.code(sql_query, language="sql")
 
+      with st.spinner("Running query against the database..."):
         results = execute_query(sql_query)
-        st.subheader("Execution Results:")
-        st.dataframe(results, use_container_width=True)
-      except Exception as e:
-        st.error(f"Execution Error: {e}")
+      st.subheader("Execution Results:")
+      st.dataframe(results, use_container_width=True)
+      st.download_button(
+          "Download results as CSV",
+          results.to_csv(index=False).encode("utf-8"),
+          file_name="query_results.csv",
+          mime="text/csv",
+      )
+
+      st.session_state.history.insert(
+          0, {"question": user_input, "sql": sql_query}
+      )
+    except Exception as e:
+      st.error(f"Execution Error: {e}")
+
+if st.session_state.history:
+  st.subheader("Question History")
+  for item in st.session_state.history[:10]:
+    with st.expander(item["question"]):
+      st.code(item["sql"], language="sql")
